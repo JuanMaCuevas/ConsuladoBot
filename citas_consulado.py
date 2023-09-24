@@ -10,6 +10,7 @@ import string
 import time
 import os
 from database import Database
+from messenger import send_telegram_message
 
 db = Database()
 
@@ -36,89 +37,61 @@ DATE_ELEMENT_SELECTOR = "#idDivBktDatetimeSelectedDate"
 if not USER_ID or not PASSWORD:
     raise ValueError("Please set the BRD_USER_ID and BRD_PASSWORD environment variables.")
 
-
-def send_telegram_message(text):
-    url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
-    payload = {'chat_id': CHAT_ID, 'text': text}
-    print(url,payload)
-    response = requests.post(url, data=payload)
-    print(response.json())
-
-def fetch_last_entry():
-    conn = sqlite3.connect('appointments.db')
-    c = conn.cursor()
-    c.execute('''
-        SELECT * FROM appointments ORDER BY id DESC LIMIT 1
-    ''')
-    row = c.fetchone()
-    conn.close()
-    return row
-
-
-
-
-with sync_playwright() as p:
-    ua = UserAgent()
-    random_ua = ua.chrome
-    session_id = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
-    proxy_auth = f"brd-customer-{USER_ID}-zone-datacenter_proxy-session-{session_id}:{PASSWORD}"
-    
-    # browser = p.chromium.launch(
-    #     headless = not DEBUG,
-    #     proxy={
-    #         'server': f'http://{PROXY_URL}',
-    #         'username': proxy_auth.split(":")[0],
-    #         'password': PASSWORD
-    #     }, 
-    #     args=[f'--user-agent={random_ua}']
-    # )
-
-    context = p.chromium.launch_persistent_context(
-        user_data_dir='./chrome_cache',  # Path where browser data will be stored
-         headless = not DEBUG,
-        proxy={
-            'server': f'http://{PROXY_URL}',
-            'username': proxy_auth.split(":")[0],
-            'password': PASSWORD
-        }, 
-        args=[f'--user-agent={random_ua}']
-    )
-
-    # context = browser.new_context(cache_path='chrome_cache')
-    page = context.new_page()    
-    # page = browser.new_page()
-    start_time = time.time()
-    
-    try:
-        page.goto(SITE_URL)
-        cita_link = page.wait_for_selector(CITA_LINK_SELECTOR)
-        cita_link.click()
+def main():
+    with sync_playwright() as p:
+        ua = UserAgent()
+        random_ua = ua.chrome
+        session_id = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+        proxy_auth = f"brd-customer-{USER_ID}-zone-datacenter_proxy-session-{session_id}:{PASSWORD}"
         
-        inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
-        time.sleep(random.uniform(1, 2))
-        inscripcion_link.click()
-                
-        date_element = page.wait_for_selector(DATE_ELEMENT_SELECTOR, timeout=10000)
-        date_text = date_element.inner_text()
-        print("Extracted Date:", date_text)
-        date_obj = dateparser.parse(date_text, languages=['es'])
 
-        new_appointment_date = date_obj.strftime('%Y-%m-%d')
-        new_server_response_time = time.time() - start_time
-        last_entry = db.fetch_last_entry()
-        if last_entry is None or last_entry[2] != new_appointment_date:
-            send_telegram_message(f'Próxima cita: {date_text}')            
-        db.insert_data(new_appointment_date, new_server_response_time)
-        if DEBUG:
-            page.pause()
-            time.sleep(1000)
+        context = p.chromium.launch_persistent_context(
+            user_data_dir='./chrome_cache',  # Path where browser data will be stored
+            headless = not DEBUG,
+            proxy={
+                'server': f'http://{PROXY_URL}',
+                'username': proxy_auth.split(":")[0],
+                'password': PASSWORD
+            }, 
+            args=[f'--user-agent={random_ua}']
+        )
 
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        page.close()
-        context.close()
-        # browser.close()
+        # context = browser.new_context(cache_path='chrome_cache')
+        page = context.new_page()    
+        # page = browser.new_page()
+        start_time = time.time()
+        
+        try:
+            page.goto(SITE_URL)
+            cita_link = page.wait_for_selector(CITA_LINK_SELECTOR)
+            cita_link.click()
+            
+            inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
+            time.sleep(random.uniform(1, 2))
+            inscripcion_link.click()
+                    
+            date_element = page.wait_for_selector(DATE_ELEMENT_SELECTOR, timeout=10000)
+            date_text = date_element.inner_text()
+            print("Extracted Date:", date_text)
+            date_obj = dateparser.parse(date_text, languages=['es'])
+
+            new_appointment_date = date_obj.strftime('%Y-%m-%d')
+            new_server_response_time = time.time() - start_time
+            last_entry = db.fetch_last_entry()
+            if last_entry is None or last_entry[2] != new_appointment_date:
+                send_telegram_message(f'Próxima cita: {date_text}')            
+            db.insert_data(new_appointment_date, new_server_response_time)
+            if DEBUG:
+                page.pause()
+                time.sleep(1000)
+
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            page.close()
+            context.close()
+            db.close()
 
 
-    
+if __name__ == '__main__':
+    main()
