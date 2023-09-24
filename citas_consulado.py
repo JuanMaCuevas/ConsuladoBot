@@ -12,10 +12,12 @@ import time
 import os
 from database import Database
 from messenger import send_telegram_message
+from browser_automation import setup_browser, navigate_and_fetch_date
 
 
 logging.basicConfig(filename='bot.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-db = Database()
+
+
 
 
 DEBUG = True
@@ -40,45 +42,27 @@ DATE_ELEMENT_SELECTOR = "#idDivBktDatetimeSelectedDate"
 if not USER_ID or not PASSWORD:
     raise ValueError("Please set the BRD_USER_ID and BRD_PASSWORD environment variables.")
 
-def setup_browser(playwright):
 
-    ua = UserAgent()
-    random_ua = ua.chrome
-    session_id = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
-    proxy_auth = f"brd-customer-{USER_ID}-zone-datacenter_proxy-session-{session_id}:{PASSWORD}"
+def generate_session_id(length=8):
+    characters = string.ascii_lowercase + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
 
-    context = playwright.chromium.launch_persistent_context(
-        user_data_dir='./chrome_cache',
-        headless=not DEBUG,
-        proxy={
-            'server': f'http://{PROXY_URL}',
-            'username': proxy_auth.split(":")[0],
-            'password': PASSWORD
-        },
-        args=[f'--user-agent={random_ua}']
-    )
-    return context
 
-def navigate_and_fetch_date(page):
-    page.goto(SITE_URL)
-    cita_link = page.wait_for_selector(CITA_LINK_SELECTOR)
-    cita_link.click()
-        
-    inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
-    time.sleep(random.uniform(1, 2))
-    inscripcion_link.click()
-                
-    date_element = page.wait_for_selector(DATE_ELEMENT_SELECTOR, timeout=10000)
-    date_text = date_element.inner_text()
-    
-    return date_text
+def generate_user_agent():
+    try:
+        ua = UserAgent()
+        return ua.chrome
+    except Exception as e:
+        logging.error(f"Error generating user agent: {e}")
+        return 'default_user_agent'
+
 
 def parse_date(date_text):
     date_obj = dateparser.parse(date_text, languages=['es'])
     return date_obj.strftime('%Y-%m-%d')
 
 
-def handle_new_data(date_text, start_time):
+def handle_new_data(db,date_text, start_time):
     new_appointment_date = parse_date(date_text)
     new_server_response_time = time.time() - start_time
     last_entry = db.fetch_last_entry()
@@ -88,19 +72,20 @@ def handle_new_data(date_text, start_time):
 
 
 def main():
+    db = Database()
     with sync_playwright() as p:
-        context = setup_browser(p)
+        context = setup_browser(p, USER_ID, PASSWORD, PROXY_URL, DEBUG)
         page = context.new_page()
         start_time = time.time()
 
         try:
-            date_text = navigate_and_fetch_date(page)
-            handle_new_data(date_text, start_time)
+            date_text = navigate_and_fetch_date(page, SITE_URL, CITA_LINK_SELECTOR, INSCRIPCION_LINK_TEXT, DATE_ELEMENT_SELECTOR)
+            handle_new_data(db,date_text, start_time)
             if DEBUG:
                 page.pause()
                 time.sleep(1000)
 
-        except SpecificException as e:  # Replace with specific exception
+        except Exception as e:  # Replace with specific exception
             logging.error(f"An error occurred: {e}")
 
         finally:
