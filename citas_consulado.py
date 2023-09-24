@@ -13,6 +13,7 @@ import os
 from database import Database
 from messenger import send_telegram_message
 from browser_automation import setup_browser, navigate_and_fetch_date
+from config import Config
 
 
 logging.basicConfig(filename='bot.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -72,6 +73,7 @@ def handle_new_data(db,date_text, start_time):
 
 
 def main():
+    config = Config()
     db = Database()
     with sync_playwright() as p:
         context = setup_browser(p, USER_ID, PASSWORD, PROXY_URL, DEBUG)
