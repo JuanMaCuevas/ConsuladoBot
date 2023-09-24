@@ -1,0 +1,6 @@
+fake-useragent
+dotenv
+playwright
+requests
+dateparser
+sqlite3
