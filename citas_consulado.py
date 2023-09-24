@@ -73,39 +73,40 @@ def navigate_and_fetch_date(page):
     
     return date_text
 
+def parse_date(date_text):
+    date_obj = dateparser.parse(date_text, languages=['es'])
+    return date_obj.strftime('%Y-%m-%d')
+
+
+def handle_new_data(date_text, start_time):
+    new_appointment_date = parse_date(date_text)
+    new_server_response_time = time.time() - start_time
+    last_entry = db.fetch_last_entry()
+    if last_entry is None or last_entry[2] != new_appointment_date:
+        send_telegram_message(f'Próxima cita: {date_text}')
+    db.insert_data(new_appointment_date, new_server_response_time)
+
 
 def main():
     with sync_playwright() as p:
         context = setup_browser(p)
-
-
-        # context = browser.new_context(cache_path='chrome_cache')
-        page = context.new_page()    
-        # page = browser.new_page()
+        page = context.new_page()
         start_time = time.time()
-        
+
         try:
             date_text = navigate_and_fetch_date(page)
-            print("Extracted Date:", date_text)
-            date_obj = dateparser.parse(date_text, languages=['es'])
-
-            new_appointment_date = date_obj.strftime('%Y-%m-%d')
-            new_server_response_time = time.time() - start_time
-            last_entry = db.fetch_last_entry()
-            if last_entry is None or last_entry[2] != new_appointment_date:
-                send_telegram_message(f'Próxima cita: {date_text}')            
-            db.insert_data(new_appointment_date, new_server_response_time)
+            handle_new_data(date_text, start_time)
             if DEBUG:
                 page.pause()
                 time.sleep(1000)
 
-        except Exception as e:
+        except SpecificException as e:  # Replace with specific exception
             logging.error(f"An error occurred: {e}")
+
         finally:
             page.close()
             context.close()
             db.close()
-
 
 if __name__ == '__main__':
     main()
