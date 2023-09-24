@@ -3,6 +3,7 @@ from fake_useragent import UserAgent
 from dotenv import load_dotenv
 from datetime import datetime
 import dateparser
+import logging
 import requests
 import sqlite3
 import random
@@ -12,6 +13,8 @@ import os
 from database import Database
 from messenger import send_telegram_message
 
+
+logging.basicConfig(filename='bot.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 db = Database()
 
 
@@ -86,7 +89,7 @@ def main():
                 time.sleep(1000)
 
         except Exception as e:
-            print(f"Error: {e}")
+            logging.error(f"An error occurred: {e}")
         finally:
             page.close()
             context.close()
