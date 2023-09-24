@@ -40,24 +40,44 @@ DATE_ELEMENT_SELECTOR = "#idDivBktDatetimeSelectedDate"
 if not USER_ID or not PASSWORD:
     raise ValueError("Please set the BRD_USER_ID and BRD_PASSWORD environment variables.")
 
+def setup_browser(playwright):
+
+    ua = UserAgent()
+    random_ua = ua.chrome
+    session_id = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+    proxy_auth = f"brd-customer-{USER_ID}-zone-datacenter_proxy-session-{session_id}:{PASSWORD}"
+
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir='./chrome_cache',
+        headless=not DEBUG,
+        proxy={
+            'server': f'http://{PROXY_URL}',
+            'username': proxy_auth.split(":")[0],
+            'password': PASSWORD
+        },
+        args=[f'--user-agent={random_ua}']
+    )
+    return context
+
+def navigate_and_fetch_date(page):
+    page.goto(SITE_URL)
+    cita_link = page.wait_for_selector(CITA_LINK_SELECTOR)
+    cita_link.click()
+        
+    inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
+    time.sleep(random.uniform(1, 2))
+    inscripcion_link.click()
+                
+    date_element = page.wait_for_selector(DATE_ELEMENT_SELECTOR, timeout=10000)
+    date_text = date_element.inner_text()
+    
+    return date_text
+
+
 def main():
     with sync_playwright() as p:
-        ua = UserAgent()
-        random_ua = ua.chrome
-        session_id = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
-        proxy_auth = f"brd-customer-{USER_ID}-zone-datacenter_proxy-session-{session_id}:{PASSWORD}"
-        
+        context = setup_browser(p)
 
-        context = p.chromium.launch_persistent_context(
-            user_data_dir='./chrome_cache',  # Path where browser data will be stored
-            headless = not DEBUG,
-            proxy={
-                'server': f'http://{PROXY_URL}',
-                'username': proxy_auth.split(":")[0],
-                'password': PASSWORD
-            }, 
-            args=[f'--user-agent={random_ua}']
-        )
 
         # context = browser.new_context(cache_path='chrome_cache')
         page = context.new_page()    
@@ -65,16 +85,7 @@ def main():
         start_time = time.time()
         
         try:
-            page.goto(SITE_URL)
-            cita_link = page.wait_for_selector(CITA_LINK_SELECTOR)
-            cita_link.click()
-            
-            inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
-            time.sleep(random.uniform(1, 2))
-            inscripcion_link.click()
-                    
-            date_element = page.wait_for_selector(DATE_ELEMENT_SELECTOR, timeout=10000)
-            date_text = date_element.inner_text()
+            date_text = navigate_and_fetch_date(page)
             print("Extracted Date:", date_text)
             date_obj = dateparser.parse(date_text, languages=['es'])
 
