@@ -1,19 +1,31 @@
 import requests
+from settings import *
 
-def send_message(tg_token, tg_chat_id,wa_phone,wa_token, text):
-    url = f'https://api.telegram.org/bot{tg_token}/sendMessage'
-    payload = {'chat_id': tg_chat_id, 'text': text}
-    response = requests.post(url, data=payload)
-    telegram_response = response.json()
+class Messenger:
+    def __init__(self, telegram=True, whatsapp=True):
+        self.tg_token = TG_TOKEN
+        self.tg_chat_id = TG_CHAT_ID
+        self.wa_phone = WA_CONTACT_ID
+        self.wa_token = WA_TOKEN
+        self.telegram = telegram
+        self.whatsapp = whatsapp
 
+    def _send_telegram_message(self, text):
+        url = f'https://api.telegram.org/bot{self.tg_token}/sendMessage'
+        payload = {'chat_id': self.tg_chat_id, 'text': text}
+        response = requests.post(url, data=payload)
+        return response.json()
 
-    url = 'https://api.callmebot.com/whatsapp.php'
-    params = {
-        'phone': wa_phone,
-        'text': text,
-        'apikey':wa_token
-    }
+    def _send_whatsapp_message(self, text):
+        url = 'https://api.callmebot.com/whatsapp.php'
+        params = { 'phone': self.wa_phone, 'text': text, 'apikey': self.wa_token }
+        response = requests.get(url, params=params)
+        return response
 
-    whatsapp_response = requests.get(url, params=params)
-
-    return telegram_response,whatsapp_response
+    def notify(self, text):
+        responses = {}
+        if self.telegram:
+            responses['telegram'] = self._send_telegram_message(text)
+        if self.whatsapp:
+            responses['whatsapp'] = self._send_whatsapp_message(text)
+        return responses

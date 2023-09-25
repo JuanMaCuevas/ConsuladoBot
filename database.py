@@ -24,14 +24,16 @@ class Database:
             )
         ''')
         self.conn.commit()
-
-    def fetch_last_entry(self):
+    
+    def upcoming_appointment_changed(self, date):
         c = self.conn.cursor()
-        c.execute('''
-            SELECT * FROM appointments ORDER BY id DESC LIMIT 1
-        ''')
+        c.execute(
+            "SELECT * FROM appointments WHERE appointment_date = ? ORDER BY id DESC LIMIT 1;",
+            (date,)  
+        )
         row = c.fetchone()
-        return row
+        return row is None
+
 
     def insert_data(self, appointment_date, server_response_time, num_appointments=None):
         c = self.conn.cursor()
