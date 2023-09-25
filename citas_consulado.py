@@ -11,14 +11,12 @@ import string
 import time
 import os
 from database import Database
-from messenger import send_telegram_message
+from messenger import send_message
 from browser_automation import setup_browser, navigate_and_fetch_date
 from config import Config
 
 
 logging.basicConfig(filename='bot.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
 
 
 DEBUG = True
@@ -29,8 +27,12 @@ USER_ID = os.environ.get('PROXY_USER_ID')
 PASSWORD = os.environ.get('PROXY_PASSWORD')
 PROXY_URL = os.environ.get('PROXY_URL')
 #telegram
-TOKEN =  os.environ.get('TELEGRAM_BOT_API_TOKEN')
-CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+TG_TOKEN =  os.environ.get('TELEGRAM_BOT_API_TOKEN')
+TG_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+#whatsapp
+WA_TOKEN =  os.environ.get('WHATSAPP_BOT_API_TOKEN')
+WA_CONTACT_ID = os.environ.get('WHATSAPP_CONTACT_ID')
+
 # bookit it
 BOOKITIT_API = os.environ.get('BOOKITIT_API')
 
@@ -67,12 +69,15 @@ def handle_new_data(db,date_text, start_time):
     new_appointment_date = parse_date(date_text)
     new_server_response_time = time.time() - start_time
     last_entry = db.fetch_last_entry()
-    if last_entry is None or last_entry[2] != new_appointment_date:
-        send_telegram_message(f'Próxima cita: {date_text}')
+    notify = last_entry is None or last_entry[2] != new_appointment_date
     db.insert_data(new_appointment_date, new_server_response_time)
+    return notify
 
 
 def main():
+    res = send_message(TG_TOKEN, TG_CHAT_ID,WA_CONTACT_ID,WA_TOKEN, 'hola qué tal?!')
+    print(res)
+    exit(0)
     config = Config()
     db = Database()
     with sync_playwright() as p:
@@ -82,7 +87,9 @@ def main():
 
         try:
             date_text = navigate_and_fetch_date(page, SITE_URL, CITA_LINK_SELECTOR, INSCRIPCION_LINK_TEXT, DATE_ELEMENT_SELECTOR)
-            handle_new_data(db,date_text, start_time)
+            if handle_new_data(db,date_text, start_time):
+                send_message(TG_TOKEN, TG_CHAT_ID,WA_TOKEN,WA_CONTACT_ID, text)
+            handle_new_data
             if DEBUG:
                 page.pause()
                 time.sleep(1000)
