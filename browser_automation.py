@@ -53,7 +53,7 @@ def click_cita_link(page, CITA_LINK_SELECTOR):
     cita_link.click()
 
 def click_inscripcion_link(page, INSCRIPCION_LINK_TEXT):
-    inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=20000)
+    inscripcion_link = page.wait_for_selector(f"a:visible:text-is('{INSCRIPCION_LINK_TEXT}')", timeout=100000)
     time.sleep(random.uniform(1, 2))
     inscripcion_link.click()
 
